@@ -1,4 +1,4 @@
-active_pipeline: null
+active_pipeline: google_live
 asterisk:
   app_name: asterisk-ai-voice-agent
 audio_transport: audiosocket
@@ -31,7 +31,7 @@ config_version: 6
 farewell_hangup_delay_sec: 3
 contexts:
   default:
-    greeting: Hello
+    greeting: Olá! Sou o AVA, seu assistente de voz com IA. Como posso ajudar?
     profile: telephony_ulaw_8k
     prompt: >-
       You are Asterisk, an AI Assistant. Be helpful and concise.
@@ -40,7 +40,7 @@ contexts:
       CALL ENDING:
       - When the caller indicates they are done, say a brief farewell, then use the hangup_call tool to end the call.
       - NEVER mention tools or the word "hangup_call" to the caller.
-    provider: local
+    provider: google_live
     tools:
       - hangup_call
   Tool_Example:
@@ -2200,3 +2200,5 @@ vad:
   webrtc_aggressiveness: 1
   webrtc_end_silence_frames: 50
   webrtc_start_frames: 3
+
+

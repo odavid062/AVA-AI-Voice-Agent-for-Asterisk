@@ -74,6 +74,169 @@ Esta é a minha implementação e customização do projeto open-source **AVA �
 
 ---
 
+## 📋 Pré-requisitos
+
+Para executar o AVA localmente ou em servidor, são necessários:
+
+- **Docker** e **Docker Compose v2** (suporte ao comando `docker compose` ou utilitário `docker-compose`).
+- **Asterisk 18+** com o módulo ARI (Asterisk REST Interface) ativado e driver PJSIP configurado.
+- **Python 3.11+** (caso execute scripts auxiliares, CLI ou testes diretamente na máquina host).
+- **Chave de API do Google Cloud** com suporte ao Gemini Live (`GOOGLE_API_KEY`) ou credencial de Service Account (`GOOGLE_APPLICATION_CREDENTIALS`).
+- **Softphone SIP** para testes de chamadas (ex.: **MicroSIP** configurado no ramal local).
+- Ambiente testado: **Linux** (Ubuntu 20.04+, Debian 11+) e **Windows 11 via WSL2 (Ubuntu)**.
+
+---
+
+## ⚙️ Variáveis de Ambiente
+
+As configurações de ambiente e credenciais devem ser definidas no arquivo `.env` (gerado a partir de `.env.example`).
+
+> ⚠️ **Atenção:** Nunca compartilhe ou versione valores de credenciais e chaves secretas.
+
+Principais variáveis utilizadas:
+
+| Variável | Descrição / Finalidade |
+| -------- | ---------------------- |
+| `COMPOSE_PROJECT_NAME` | Nome do projeto para isolamento dos containers no Docker Compose (padrão: `asterisk-ai-voice-agent`). |
+| `ASTERISK_HOST` | Endereço IP ou hostname do servidor Asterisk para conexão ARI (ex.: `127.0.0.1`). |
+| `ASTERISK_ARI_PORT` | Porta de comunicação da API ARI do Asterisk (padrão: `8088`). |
+| `ASTERISK_ARI_USERNAME` | Nome de usuário configurado no Asterisk para autenticação no ARI. |
+| `ASTERISK_ARI_PASSWORD` | Senha de autenticação do usuário ARI. |
+| `ASTERISK_UID` / `ASTERISK_GID` | UID e GID do usuário Asterisk no host para alinhamento de permissões de arquivos de mídia gerados. |
+| `GOOGLE_API_KEY` | Chave de API para o provedor Google Gemini Live (`google_live`). |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Caminho do arquivo JSON de credenciais de Service Account Google Cloud/Vertex AI (opcional). |
+| `JWT_SECRET` | Chave secreta usada pelo backend da Admin UI para assinatura de tokens de sessão. |
+| `UVICORN_PORT` | Porta HTTP da interface administrativa web Admin UI (padrão: `3003`). |
+| `HEALTH_BIND_HOST` / `HEALTH_BIND_PORT` | Endereço e porta de escuta do endpoint de saúde do motor (padrão: porta `15000`). |
+| `LOG_LEVEL` | Nível de detalhamento dos logs do motor (`debug`, `info`, `warning`, `error`). |
+| `CALL_HISTORY_ENABLED` | Habilita o registro e persistência do histórico de chamadas (`true` ou `false`). |
+| `CALL_HISTORY_DB_PATH` | Caminho do banco SQLite do histórico de chamadas (padrão: `data/call_history.db`). |
+
+---
+
+## 🚀 Como instalar e rodar localmente
+
+### 1. Clonar e configurar o ambiente
+
+Execute o assistente de pré-checagem para validar o ambiente e gerar o `.env`:
+
+```bash
+# Executar pré-checagem com correção automática de permissões e geração de chaves
+./preflight.sh --apply-fixes
+```
+
+Ou configure manualmente a partir do modelo de exemplo:
+
+```bash
+cp .env.example .env
+# Em seguida, edite o .env configurando o ASTERISK_HOST, ARI e GOOGLE_API_KEY
+```
+
+### 2. Iniciar os serviços via Docker Compose
+
+```bash
+# Iniciar os containers principais (ai_engine e admin_ui) em segundo plano
+docker compose up -d
+
+# Ou via Makefile
+make up
+```
+
+### 3. Acessar a Interface Administrativa (Admin UI)
+
+Abra no navegador:
+- **URL local:** `http://localhost:3003`
+- **Login padrão inicial:** `admin` / `admin` *(altere a senha imediatamente no primeiro acesso)*
+
+Pelo painel é possível auditar a conexão com o ARI, visualizar o status dos serviços e acompanhar os logs.
+
+### 4. Verificar o status e saúde do motor
+
+```bash
+# Consultar o endpoint de saúde do ai_engine
+curl http://localhost:15000/health
+# Resposta esperada: {"status":"healthy"}
+
+# Acompanhar logs em tempo real
+docker compose logs -f ai_engine
+```
+
+### 5. Encerrar os serviços
+
+```bash
+docker compose down
+# Ou via Makefile
+make down
+```
+
+---
+
+## 📜 Scripts e Comandos Disponíveis
+
+O projeto inclui atalhos de automação via `Makefile` e scripts de apoio na pasta `scripts/`:
+
+### Makefile
+
+- `make build`: Constrói ou reconstrói as imagens Docker dos serviços.
+- `make up`: Inicia os containers em segundo plano.
+- `make down`: Para e remove os containers (`--remove-orphans`).
+- `make logs`: Exibe e acompanha os logs do serviço `ai_engine` (use `make logs-all` para todos).
+- `make engine-reload`: Reinicia o container `ai_engine` para aplicar novas configurações.
+- `make ps`: Exibe o estado e portas dos serviços em execução.
+- `make test-health`: Valida o endpoint de saúde `http://127.0.0.1:15000/health`.
+- `make test-local`: Executa os testes nos containers `ai_engine` e `local_ai_server`.
+- `make provider-switch provider=<nome>`: Atualiza o provedor padrão no arquivo `config/ai-agent.yaml`.
+
+### Scripts utilitários
+
+- `./preflight.sh`: Valida compatibilidade do sistema operacional, dependências Docker e permissões do Asterisk.
+- `./install.sh`: Assistente interativo para setup guiado do sistema.
+- `scripts/switch_provider.py`: Utilitário para troca programática de provedor na configuração.
+- `scripts/validate_externalmedia_config.py`: Valida configurações de ExternalMedia e RTP.
+- `scripts/test_externalmedia_call.py`: Executa teste de fluxo de chamada via endpoint `/health`.
+- `scripts/capture_test_logs.py` e `scripts/analyze_logs.py`: Captura e análise de logs estruturados de chamadas.
+
+---
+
+## 🧪 Testes e Verificação
+
+- **Verificação rápida de integridade:**
+  ```bash
+  make test-health
+  # Ou: curl http://localhost:15000/health
+  ```
+- **Execução de testes locais em container:**
+  ```bash
+  make test-local
+  make test-integration
+  ```
+- **Teste com chamada real:**
+  Conecte o softphone MicroSIP ao Asterisk (ramal `100`), ligue para a aplicação Stasis configurada no dialplan (`asterisk-ai-voice-agent`) e valide a saudação em português e a resposta do Google Gemini Live.
+
+---
+
+## 📂 Estrutura de Pastas
+
+```text
+.
+├── admin_ui/         # Interface web administrativa (FastAPI + React/Vite) na porta 3003
+├── assets/           # Imagens, diagramas e banners do projeto
+├── asterisk_media/   # Diretório compartilhado para gravações e áudios gerados
+├── config/           # Configurações do agente (ai-agent.yaml, perfis e baselines)
+├── data/             # Persistência local (banco SQLite call_history.db e modelos customizados)
+├── docs/             # Guias completos de instalação, arquitetura, provedores e operações
+├── local_ai_server/  # Servidor opcional para modelos de IA locais (Vosk, Piper, llama.cpp, etc.)
+├── scripts/          # Utilitários de setup, migração, diagnóstico e análise de logs
+├── src/              # Código-fonte Python do motor principal (ARI, AudioSocket, sessões e agentes)
+├── Dockerfile        # Imagem Docker do motor principal (ai_engine)
+├── docker-compose.yml# Orquestração dos containers (ai_engine, admin_ui, local_ai_server)
+├── Makefile          # Automação de comandos de build, execução, logs e testes
+├── preflight.sh      # Script de verificação e preparação do ambiente
+└── install.sh        # Script de instalação e configuração inicial
+```
+
+---
+
 ## 📚 Documentação completa (projeto original)
 
 Toda a documentação técnica detalhada (instalação, provedores, pipelines, CLI) está **preservada**:
